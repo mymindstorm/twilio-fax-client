@@ -4,6 +4,7 @@ use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::fs::OpenOptions;
 use std::convert::TryFrom;
+use request::*;
 
 mod support;
 mod request;
@@ -16,7 +17,8 @@ fn main() {
         conf_send_from: ImString::with_capacity(20),
         conf_twilio_sid: ImString::with_capacity(35),
         conf_twilio_token: ImString::with_capacity(200),
-        status: Status::SendForm
+        view: CurrentView::SendForm,
+        fax_status: TxStatus::WaitUser,
     };
 
     let (mut conf_file, conf_data) = get_conf();
@@ -29,17 +31,17 @@ fn main() {
         },
         Err(_err) => {
             state.conf_send_from.push_str("+1");
-            state.status = Status::EditSettings;
+            state.view = CurrentView::EditSettings;
         }
     }
 
     state.form_send_to.push_str("+1");
 
     system.main_loop(|_, ui| {
-        match state.status {
-            Status::SendForm => send_form(&ui, &mut state),
-            Status::SubmitStatus => submit_status(&ui, &mut state),
-            Status::EditSettings => edit_settings(&ui, &mut state, &mut conf_file),
+        match state.view {
+            CurrentView::SendForm => send_form(&ui, &mut state),
+            CurrentView::SubmitStatus => submit_status(&ui, &mut state),
+            CurrentView::EditSettings => edit_settings(&ui, &mut state, &mut conf_file),
         }
     });
 }
@@ -73,7 +75,19 @@ fn send_form(ui: &Ui, ui_state: &mut UIState) {
             ui.separator();
             ui.spacing();
             if ui.small_button(im_str!("Send Fax")) {
-                ui_state.status = Status::SubmitStatus; 
+                ui_state.view = CurrentView::SubmitStatus;
+                let fax_data = FaxData {
+                    fax_from: String::from(ui_state.conf_send_from.to_str()),
+                    fax_to: String::from(ui_state.form_send_to.to_str()),
+                    media_path: String::new(),
+                    creds: Credentials {
+                        TwilioSID: String::from(ui_state.conf_twilio_sid.to_str()),
+                        TwilioSecret: String::from(ui_state.conf_twilio_token.to_str()),
+                        TenantOCID: String::new(),
+                        UserOCID: String::new()
+                    },
+                };
+                start_fax(fax_data);
             }
         });
 }
@@ -82,6 +96,27 @@ fn submit_status(ui: &Ui, ui_state: &mut UIState) {
     Window::new(im_str!("Sending Fax..."))
         .size([300.0, 200.0], Condition::FirstUseEver)
         .build(ui, || {
+            match &ui_state.fax_status {
+                TxStatus::WaitUser => {},
+                TxStatus::UploadFile(progress) => {
+                    ui.text("Uploading PDF to bucket...");
+                    ProgressBar::new(progress)
+                        .size([100.0, 200.0])
+                        .build(&ui);
+                },
+                TxStatus::GenPreauth => {
+                    ui.text("Generating access URL for PDF...");
+                },
+                TxStatus::SubmitFax => {
+                    ui.text("Submitting fax...");
+                },
+                TxStatus::FaxStatus => {
+                    ui.text("API response here");
+                },
+                TxStatus::FaxError(error) => {
+                    ui.text_colored([1.0, 0.0, 0.0, 1.0], error);
+                }
+            }
         });
 
 }
@@ -119,7 +154,7 @@ fn edit_settings(ui: &Ui, ui_state: &mut UIState, conf_file: &mut std::fs::File)
                     .expect("Error writing to config.json");
                 conf_file.set_len(conf_data_len)
                     .unwrap();
-                ui_state.status = Status::SendForm;
+                ui_state.view = CurrentView::SendForm;
             }
         });
 }
@@ -130,10 +165,11 @@ struct UIState {
     conf_send_from: ImString,
     conf_twilio_sid: ImString,
     conf_twilio_token: ImString,
-    status: Status
+    view: CurrentView,
+    fax_status: TxStatus,
 }
 
-enum Status {
+enum CurrentView {
     EditSettings,
     SendForm,
     SubmitStatus
