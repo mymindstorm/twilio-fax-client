@@ -4,6 +4,9 @@ use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::fs::OpenOptions;
 use std::convert::TryFrom;
+use std::thread;
+use std::sync::mpsc;
+use std::rc::Rc;
 use request::*;
 
 mod support;
@@ -11,6 +14,8 @@ mod request;
 
 fn main() {
     let system = support::init(file!());
+    let (tx, rx): (mpsc::Sender<TxStatus>, mpsc::Receiver<TxStatus>) = mpsc::channel();
+    let rx = Rc::new(rx);
     let mut state = UIState {
         form_send_to: ImString::with_capacity(20),
         form_file: ImString::with_capacity(261),
@@ -39,8 +44,8 @@ fn main() {
 
     system.main_loop(|_, ui| {
         match state.view {
-            CurrentView::SendForm => send_form(&ui, &mut state),
-            CurrentView::SubmitStatus => submit_status(&ui, &mut state),
+            CurrentView::SendForm => send_form(&ui, &mut state, tx.clone()),
+            CurrentView::SubmitStatus => submit_status(&ui, &mut state, Rc::clone(&rx)),
             CurrentView::EditSettings => edit_settings(&ui, &mut state, &mut conf_file),
         }
     });
@@ -62,7 +67,7 @@ fn get_conf() -> (std::fs::File, Result<ConfData, serde_json::Error>) {
     (conf_file, serde_json::from_str(&conf_content[..]))
 }
 
-fn send_form(ui: &Ui, ui_state: &mut UIState) {
+fn send_form(ui: &Ui, ui_state: &mut UIState, tx: mpsc::Sender<TxStatus>) {
     Window::new(im_str!("Send Fax"))
         .size([300.0, 200.0], Condition::FirstUseEver)
         .build(ui, || {
@@ -76,31 +81,37 @@ fn send_form(ui: &Ui, ui_state: &mut UIState) {
             ui.spacing();
             if ui.small_button(im_str!("Send Fax")) {
                 ui_state.view = CurrentView::SubmitStatus;
-                let fax_data = FaxData {
-                    fax_from: String::from(ui_state.conf_send_from.to_str()),
-                    fax_to: String::from(ui_state.form_send_to.to_str()),
-                    media_path: String::new(),
-                    creds: Credentials {
-                        TwilioSID: String::from(ui_state.conf_twilio_sid.to_str()),
-                        TwilioSecret: String::from(ui_state.conf_twilio_token.to_str()),
-                        TenantOCID: String::new(),
-                        UserOCID: String::new()
-                    },
-                };
-                start_fax(fax_data);
+                let fax_data = new_fax_data(String::from(ui_state.conf_send_from.to_str()),
+                    String::from(ui_state.form_send_to.to_str()),
+                    String::new(),
+                    new_creds(
+                        String::from(ui_state.conf_twilio_sid.to_str()),
+                        String::from(ui_state.conf_twilio_token.to_str()),
+                        String::new(),
+                        String::new()
+                    ),
+                );
+                thread::spawn(move || {
+                    start_fax(fax_data, tx);
+                });
             }
         });
 }
 
-fn submit_status(ui: &Ui, ui_state: &mut UIState) {
+fn submit_status(ui: &Ui, ui_state: &mut UIState, rx: Rc<mpsc::Receiver<TxStatus>>) {
     Window::new(im_str!("Sending Fax..."))
         .size([300.0, 200.0], Condition::FirstUseEver)
         .build(ui, || {
+            match rx.try_recv() {
+                Ok(new_state) => ui_state.fax_status = new_state,
+                Err(_) => { }
+            }
+
             match &ui_state.fax_status {
                 TxStatus::WaitUser => {},
                 TxStatus::UploadFile(progress) => {
                     ui.text("Uploading PDF to bucket...");
-                    ProgressBar::new(progress)
+                    ProgressBar::new(progress.clone())
                         .size([100.0, 200.0])
                         .build(&ui);
                 },

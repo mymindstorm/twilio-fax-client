@@ -1,7 +1,9 @@
+use std::sync::mpsc;
+
 mod bucket;
 mod fax;
 
-pub fn start_fax(data: FaxData) {
+pub fn start_fax(data: FaxData, tx: mpsc::Sender<TxStatus>) {
     // Upload to bucket
     // Gen REQ
     // Sub to twilio
@@ -15,11 +17,13 @@ pub struct FaxData {
     creds: Credentials,
 }
 
-pub struct TwilioFax {
-    From: String,
-    To: String,
-    MediaUrl: String,
-    // StoreMedia: bool
+pub fn new_fax_data(fax_from: String, fax_to: String, media_path: String, creds: Credentials) -> FaxData {
+    FaxData {
+        fax_from,
+        fax_to,
+        media_path,
+        creds
+    }
 }
 
 pub struct Credentials {
@@ -27,6 +31,15 @@ pub struct Credentials {
     TwilioSecret: String,
     TenantOCID: String,
     UserOCID: String
+}
+
+pub fn new_creds(TwilioSID: String, TwilioSecret: String, TenantOCID: String, UserOCID: String) -> Credentials {
+    Credentials {
+        TwilioSID,
+        TwilioSecret,
+        TenantOCID,
+        UserOCID
+    }
 }
 
 pub enum TxStatus {
