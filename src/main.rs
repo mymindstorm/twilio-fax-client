@@ -109,11 +109,8 @@ fn submit_status(ui: &Ui, ui_state: &mut UIState, rx: Rc<mpsc::Receiver<TxStatus
 
             match &ui_state.fax_status {
                 TxStatus::WaitUser => {},
-                TxStatus::UploadFile(progress) => {
+                TxStatus::UploadFile => {
                     ui.text("Uploading PDF to bucket...");
-                    ProgressBar::new(progress.clone())
-                        .size([100.0, 200.0])
-                        .build(&ui);
                 },
                 TxStatus::GenPreauth => {
                     ui.text("Generating access URL for PDF...");
