@@ -1,0 +1,4 @@
+- [ ] File picker
+- [ ] File preview
+- [ ] Batch jobs
+- [ ] Ask delete from bucket on error

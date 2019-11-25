@@ -14,7 +14,7 @@ clipboard = "0.5.0"
 imgui-glium-renderer = "0.2.0"
 imgui-winit-support = "0.2.1"
 # Request
-reqwest = "0.9.22"
+isahc = "0.7.6"
 openssl = { version = "0.10", features = ["vendored"] }
 serde_json = "1.0.41"
 serde = { version = "1.0", features = ["derive"] }

@@ -22,6 +22,9 @@ fn main() {
         conf_send_from: ImString::with_capacity(20),
         conf_twilio_sid: ImString::with_capacity(35),
         conf_twilio_token: ImString::with_capacity(200),
+        conf_tenant_ocid: ImString::with_capacity(150),
+        conf_user_ocid: ImString::with_capacity(150),
+        conf_pub_cert: ImString::with_capacity(100),
         view: CurrentView::SendForm,
         fax_status: TxStatus::WaitUser,
     };
@@ -33,6 +36,8 @@ fn main() {
             state.conf_send_from = ImString::from(data.send_from);
             state.conf_twilio_sid = ImString::from(data.twilio_sid);
             state.conf_twilio_token = ImString::from(data.twilio_token);
+            state.conf_tenant_ocid = ImString::from(data.tenant_ocid);
+            state.conf_user_ocid = ImString::from(data.user_ocid);
         },
         Err(_err) => {
             state.conf_send_from.push_str("+1");
@@ -83,12 +88,13 @@ fn send_form(ui: &Ui, ui_state: &mut UIState, tx: mpsc::Sender<TxStatus>) {
                 ui_state.view = CurrentView::SubmitStatus;
                 let fax_data = new_fax_data(String::from(ui_state.conf_send_from.to_str()),
                     String::from(ui_state.form_send_to.to_str()),
-                    String::new(),
+                    String::from(ui_state.conf_send_from.to_str()),
                     new_creds(
                         String::from(ui_state.conf_twilio_sid.to_str()),
                         String::from(ui_state.conf_twilio_token.to_str()),
-                        String::new(),
-                        String::new()
+                        String::from(ui_state.conf_tenant_ocid.to_str()),
+                        String::from(ui_state.conf_user_ocid.to_str()),
+                        String::from(ui_state.conf_pub_cert.to_str())
                     ),
                 );
                 thread::spawn(move || {
@@ -140,6 +146,12 @@ fn edit_settings(ui: &Ui, ui_state: &mut UIState, conf_file: &mut std::fs::File)
                 .build();
             ui.input_text(im_str!("Twilio token"), &mut ui_state.conf_twilio_token)
                 .build();
+            ui.input_text(im_str!("Tenant OCID"), &mut ui_state.conf_tenant_ocid)
+                .build();
+            ui.input_text(im_str!("User OCID"), &mut ui_state.conf_user_ocid)
+                .build();
+            ui.input_text(im_str!("Pub Cert Fingerprint"), &mut ui_state.conf_pub_cert)
+                .build();
             ui.spacing();
             ui.separator();
             ui.spacing();
@@ -147,7 +159,10 @@ fn edit_settings(ui: &Ui, ui_state: &mut UIState, conf_file: &mut std::fs::File)
                 let conf_data = ConfData {
                     send_from: String::from(ui_state.conf_send_from.to_str()),
                     twilio_sid: String::from(ui_state.conf_twilio_sid.to_str()),
-                    twilio_token: String::from(ui_state.conf_twilio_token.to_str())
+                    twilio_token: String::from(ui_state.conf_twilio_token.to_str()),
+                    tenant_ocid: String::from(ui_state.conf_tenant_ocid.to_str()),
+                    user_ocid: String::from(ui_state.conf_user_ocid.to_str()),
+                    pub_cert: String::from(ui_state.conf_pub_cert.to_str())
                 };
                 let conf_data = serde_json::to_value(conf_data)
                     .expect("Error serializing config data.");
@@ -173,6 +188,9 @@ struct UIState {
     conf_send_from: ImString,
     conf_twilio_sid: ImString,
     conf_twilio_token: ImString,
+    conf_tenant_ocid: ImString,
+    conf_user_ocid: ImString,
+    conf_pub_cert: ImString,
     view: CurrentView,
     fax_status: TxStatus,
 }
@@ -187,5 +205,8 @@ enum CurrentView {
 struct ConfData {
     send_from: String,
     twilio_sid: String,
-    twilio_token: String
+    twilio_token: String,
+    tenant_ocid: String,
+    user_ocid: String,
+    pub_cert: String
 }

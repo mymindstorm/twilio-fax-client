@@ -7,7 +7,7 @@ mod fax;
 pub fn start_fax(data: FaxData, tx: mpsc::Sender<TxStatus>) {
     // Upload to bucket
     tx.send(TxStatus::UploadFile).unwrap();
-    let result = bucket::upload_object(&data.creds.tenant_ocid, &data.creds.user_ocid, &data.media_path, &data.media_name).unwrap();
+    let result = bucket::upload_object(&data.creds, &data.media_path, &data.media_name).unwrap();
     // Gen REQ
     // Sub to twilio
     // Monitor status
@@ -35,15 +35,17 @@ pub struct Credentials {
     twilio_sid: String,
     twilio_secret: String,
     tenant_ocid: String,
-    user_ocid: String
+    user_ocid: String,
+    pub_cert: String
 }
 
-pub fn new_creds(twilio_sid: String, twilio_secret: String, tenant_ocid: String, user_ocid: String) -> Credentials {
+pub fn new_creds(twilio_sid: String, twilio_secret: String, tenant_ocid: String, user_ocid: String, pub_cert: String) -> Credentials {
     Credentials {
         twilio_sid,
         twilio_secret,
         tenant_ocid,
-        user_ocid
+        user_ocid,
+        pub_cert
     }
 }
 

@@ -1,4 +1,6 @@
-use reqwest::{ClientBuilder, Url, header::{DATE, HOST, AUTHORIZATION, HeaderMap, HeaderName}};
+use isahc::prelude::*;
+use isahc::Error;
+use isahc::http::{uri::Uri, header::HeaderMap};
 use chrono::Utc;
 use std::vec::Vec;
 use std::io::prelude::*;
@@ -8,15 +10,16 @@ use openssl::pkey::PKey;
 use openssl::sign::Signer;
 use openssl::hash::MessageDigest;
 use openssl::base64::encode_block;
+use crate::request::Credentials;
 
 const BUCKET_NAME: &str = "bucket-fax";
 const BUCKET_ENDPOINT: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com";
 const CERT_FILE: &str = "cert.pem";
-const PUB_KEY_FINGERPRINT: &str = "69:95:52:3c:f3:ba:da:38:7b:78:48:6b:53:93:5c:e6";
 
-pub fn upload_object(tenant_ocid: &str, user_ocid: &str, file_path: &str, file_name: &str) -> Result<(), String> {
-    let namespace = get_namespace(tenant_ocid, user_ocid).unwrap();
-    println!("{}", namespace);
+//noinspection ALL
+pub fn upload_object(creds: &Credentials, file_path: &str, file_name: &str) -> Result<(), String> {
+    let namespace = get_namespace(creds).unwrap();
+    println!("{:#?}", namespace);
     // let namespace = "idwvkbdltggo";
     // Upload file
     // let endpoint = format!("{}/n/{}/b/{}/o/{}", BUCKET_ENDPOINT, namespace, BUCKET_NAME, file_name).parse::<Uri>().unwrap();
@@ -35,24 +38,40 @@ fn gen_preauth() {
 
 }
 
-fn get_namespace(tenant_ocid: &str, user_ocid: &str) -> Result<String, String> {
+fn get_namespace(creds: &Credentials) -> Result<String, Error> {
     let endpoint = format!("{}/n/", BUCKET_ENDPOINT);
-    let endpoint = Url::parse(&endpoint).unwrap();
-    let mut headers = HeaderMap::new();
-    headers.insert(DATE, Utc::now().to_rfc2822().parse().unwrap());
-    headers.insert(HOST, endpoint.host_str().unwrap().parse().unwrap());
-    headers.insert(HeaderName::from_lowercase(b"(request-target)").unwrap(), format!("get {}", endpoint.query().unwrap()).parse().unwrap());
-    let auth_header = sign_request(&headers, tenant_ocid, user_ocid);
-    headers.insert(AUTHORIZATION, auth_header.parse().unwrap());
-    let client = ClientBuilder::new();
+    let endpoint = endpoint.parse::<Uri>().unwrap();
+    
+    let mut request = Request::builder();
+    {
+        let headers = request.headers_mut().unwrap();
+        headers.insert("date", Utc::now().to_rfc2822().parse().unwrap());
+        headers.insert("host", endpoint.host().unwrap().parse().unwrap());
+        let auth_header = sign_request(&headers, &endpoint, "get", creds);
+        headers.insert("authorization", auth_header.parse().unwrap());
+    }
 
-    Ok(String::new())
+    let request = request.method("GET")
+        .uri(endpoint)
+        .body(())?
+        .send();
+
+    match request {
+        Ok(result) => {
+            println!("{}", result.into_body().text().unwrap());
+            Ok(String::new())
+        },
+        Err(error) => Err(error)
+    }
 }
 
-fn sign_request(headers: &HeaderMap, tenant_ocid: &str, user_ocid: &str) -> String {
+fn sign_request(headers: &HeaderMap, uri: &Uri, method: &str, creds: &Credentials) -> String {
     // Get signing string
     let mut signing_string = String::new();
-    let mut auth_header = String::from(format!("Signature version=\"1\",keyId=\"{}/{}/{}\",algorithm=\"rsa-sha256\",headers=\"", tenant_ocid, user_ocid, PUB_KEY_FINGERPRINT));
+    let mut auth_header = String::from(format!("Signature version=\"1\",keyId=\"{}/{}/{}\",algorithm=\"rsa-sha256\",headers=\"", creds.tenant_ocid, creds.user_ocid, creds.pub_cert));
+
+    signing_string.push_str(&format!("(request-target): {} {}\n", method, match uri.path_and_query() { Some(val) => val.as_str(), None => ""}));
+    auth_header.push_str("(request-target) ");
 
     for (key, val) in headers.iter() {
         signing_string.push_str(&format!("{}: {:?}\n", key, val));
@@ -60,6 +79,7 @@ fn sign_request(headers: &HeaderMap, tenant_ocid: &str, user_ocid: &str) -> Stri
     }
     auth_header = String::from(auth_header.trim_end());
     auth_header.push_str("\"");
+    signing_string.pop();
     // Sign
     let mut cert_file = File::open(CERT_FILE)
         .expect("Could not open cert.pem file.");
@@ -73,5 +93,6 @@ fn sign_request(headers: &HeaderMap, tenant_ocid: &str, user_ocid: &str) -> Stri
     let signature = encode_block(signature.as_slice());
     auth_header = format!("{},signature=\"{}\"", auth_header, signature);
 
+    println!("{}", auth_header);
     auth_header
 }
