@@ -1,6 +1,6 @@
 use isahc::prelude::*;
-use isahc::http::{Uri, HeaderMap, HeaderValue};
-use chrono::Utc;
+use isahc::http::{Uri, HeaderMap};
+use chrono::prelude::*;
 use std::vec::Vec;
 use std::io::prelude::*;
 use std::fs::{File, metadata};
@@ -11,6 +11,7 @@ use openssl::sign::Signer;
 use openssl::hash::MessageDigest;
 use openssl::base64::encode_block;
 use crate::request::Credentials;
+use serde::{Deserialize, Serialize};
 
 const BUCKET_NAME: &str = "bucket-fax";
 const BUCKET_ENDPOINT: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com";
@@ -44,9 +45,7 @@ pub fn upload_object(creds: &Credentials, file_path: &str, file_name: &str) -> R
     let headers = request.headers_mut().unwrap();
     headers.insert("date", Utc::now().to_rfc2822().replace("+0000", "GMT").parse().unwrap());
     headers.insert("host", endpoint.host().unwrap().parse().unwrap());
-    // headers.insert("content-type", "application/".parse().unwrap());
     headers.insert("content-length", file_len.to_string().parse().unwrap());
-    // headers.insert("x-content-sha256", encode_block(&sha::sha256(file_buffer.as_slice())).parse().unwrap());
     let auth_header = sign_request(&headers, &endpoint, "put", creds);
     headers.insert("authorization", auth_header.parse().unwrap());
 
@@ -76,8 +75,56 @@ pub fn upload_object(creds: &Credentials, file_path: &str, file_name: &str) -> R
     Ok(())
 }
 
-fn gen_preauth() {
+pub fn gen_preauth(creds: &Credentials, file_name: &str) -> Result<String, String> {
+    let namespace = get_namespace(creds);
+    let namespace = match namespace {
+        Ok(res) => res,
+        Err(err) => return Err(err)
+    };
 
+    let endpoint = format!("{}/n/{}/b/{}/p/", BUCKET_ENDPOINT, namespace, BUCKET_NAME);
+    let endpoint = endpoint.parse::<Uri>().unwrap();
+    
+    let auth_req_name = format!("twilio-req-{}", Utc::now().timestamp());
+    let today = Utc::now().timestamp();
+    let expiry = Utc.timestamp(today + 86400, 0);
+    let body = CreatePreauthenticatedRequestDetails {
+        name: auth_req_name,
+        objectName: String::from(file_name),
+        accessType: String::from("ObjectRead"),
+        timeExpires: expiry.to_rfc3339()
+    };
+    let body = serde_json::to_string(&body).unwrap();
+
+    let mut request = Request::builder();
+    {
+        let headers = request.headers_mut().unwrap();
+        let time = Utc::now().to_rfc2822().replace("+0000", "GMT");
+        headers.insert("date", time.parse().unwrap());
+        headers.insert("host", endpoint.host().unwrap().parse().unwrap());
+        headers.insert("content-type", "application/json".parse().unwrap());
+        headers.insert("content-length", body.len().to_string().parse().unwrap());
+        headers.insert("x-content-sha256", encode_block(&sha::sha256(body.as_bytes())).parse().unwrap());
+        let auth_header = sign_request(&headers, &endpoint, "post", creds);
+        headers.insert("authorization", auth_header.parse().unwrap());
+    }
+
+    let request = request.method("POST")
+        .uri(endpoint)
+        .body(body).unwrap()
+        .send();
+
+    match request {
+        // TODO: error handling
+        Ok(result) => {
+            if result.status().is_success() {
+                Ok(result.into_body().text().unwrap())
+            } else {
+                Err(result.into_body().text().unwrap())
+            }
+        },
+        Err(error) => Err(error.to_string())
+    }
 }
 
 fn get_namespace(creds: &Credentials) -> Result<String, String> {
@@ -145,4 +192,12 @@ fn sign_request(headers: &HeaderMap, uri: &Uri, method: &str, creds: &Credential
     auth_header = format!("{},signature=\"{}\"", auth_header, signature);
 
     auth_header
+}
+
+#[derive(Serialize, Deserialize)]
+struct CreatePreauthenticatedRequestDetails {
+    name: String,
+    objectName: String,
+    accessType: String,
+    timeExpires: String
 }

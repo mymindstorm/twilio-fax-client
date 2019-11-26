@@ -18,6 +18,14 @@ pub fn start_fax(data: FaxData, tx: mpsc::Sender<TxStatus>) {
 
     // Gen REQ
     tx.send(TxStatus::GenPreauth).unwrap();
+    let preauth = bucket::gen_preauth(&data.creds, &data.media_name);
+    let preauth = match preauth {
+        Ok(res) => res,
+        Err(err) => {
+            tx.send(TxStatus::FaxError(err));
+            return;
+        }
+    };
     // Sub to twilio
     // Monitor status
 }
