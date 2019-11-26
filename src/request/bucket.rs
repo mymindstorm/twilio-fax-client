@@ -75,7 +75,7 @@ pub fn upload_object(creds: &Credentials, file_path: &str, file_name: &str) -> R
     Ok(())
 }
 
-pub fn gen_preauth(creds: &Credentials, file_name: &str) -> Result<String, String> {
+pub fn gen_preauth(creds: &Credentials, file_name: &str) -> Result<PreauthenticatedRequest, String> {
     let namespace = get_namespace(creds);
     let namespace = match namespace {
         Ok(res) => res,
@@ -118,7 +118,8 @@ pub fn gen_preauth(creds: &Credentials, file_name: &str) -> Result<String, Strin
         // TODO: error handling
         Ok(result) => {
             if result.status().is_success() {
-                Ok(result.into_body().text().unwrap())
+                let result: PreauthenticatedRequest = serde_json::from_str(result.into_body().text().unwrap().as_str()).unwrap();
+                Ok(result)
             } else {
                 Err(result.into_body().text().unwrap())
             }
@@ -200,4 +201,20 @@ struct CreatePreauthenticatedRequestDetails {
     objectName: String,
     accessType: String,
     timeExpires: String
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PreauthenticatedRequest {
+    accessUri: String,
+    id: String,
+    name: String,
+    accessType: String,
+    timeCreated: String,
+    timeExpires: String
+}
+
+impl PreauthenticatedRequest {
+    pub fn get_uri(&self) -> &str {
+        &self.accessUri
+    }
 }

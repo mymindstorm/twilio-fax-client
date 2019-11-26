@@ -27,7 +27,17 @@ pub fn start_fax(data: FaxData, tx: mpsc::Sender<TxStatus>) {
         }
     };
     // Sub to twilio
+    tx.send(TxStatus::SubmitFax).unwrap();
+    let fax = fax::sub_fax(&data, preauth.get_uri());
+    let fax = match fax {
+        Ok(res) => res,
+        Err(err) => {
+            tx.send(TxStatus::FaxError(err));
+            return;
+        }
+    };
     // Monitor status
+    tx.send(TxStatus::FaxStatus).unwrap();
 }
 
 pub struct FaxData {
