@@ -1,10 +1,11 @@
 use isahc::prelude::*;
-use isahc::http::{Uri, HeaderMap};
+use isahc::http::{Uri, HeaderMap, HeaderValue};
 use chrono::Utc;
 use std::vec::Vec;
 use std::io::prelude::*;
-use std::fs::File;
+use std::fs::{File, metadata};
 use openssl::rsa::Rsa;
+use openssl::sha;
 use openssl::pkey::PKey;
 use openssl::sign::Signer;
 use openssl::hash::MessageDigest;
@@ -15,7 +16,7 @@ const BUCKET_NAME: &str = "bucket-fax";
 const BUCKET_ENDPOINT: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com";
 const CERT_FILE: &str = "cert.pem";
 
-pub fn upload_object(creds: &Credentials, file_path: &str, file_name: &str) -> Result<String, String> {
+pub fn upload_object(creds: &Credentials, file_path: &str, file_name: &str) -> Result<(), String> {
     let namespace = get_namespace(creds);
 
     let namespace = match namespace {
@@ -24,15 +25,55 @@ pub fn upload_object(creds: &Credentials, file_path: &str, file_name: &str) -> R
     };
 
     // Upload file
+    let file_len = match metadata(file_path) {
+        Ok(res) => res.len(),
+        Err(err) => return Err(err.to_string())
+    };
+    let mut file = match File::open(file_path) {
+        Ok(res) => res,
+        Err(err) => return Err(err.to_string())
+    };
+    let mut file_buffer: Vec<u8> = Vec::new();
+    match file.read_to_end(&mut file_buffer) {
+        Ok(_) => {},
+        Err(err) => return Err(err.to_string())
+    };
+
     let endpoint = format!("{}/n/{}/b/{}/o/{}", BUCKET_ENDPOINT, namespace, BUCKET_NAME, file_name).parse::<Uri>().unwrap();
-    let content_length = 1;
-    let request = Request::builder()
-        .method("PUT")
-        .uri(endpoint.clone())
-        .header("content-length", content_length)
-        .header("date", Utc::now().to_rfc2822())
-        .header("host", endpoint.clone().host().unwrap());
-    Ok(String::new())
+    let mut request = Request::builder();
+    let headers = request.headers_mut().unwrap();
+    headers.insert("date", Utc::now().to_rfc2822().replace("+0000", "GMT").parse().unwrap());
+    headers.insert("host", endpoint.host().unwrap().parse().unwrap());
+    // headers.insert("content-type", "application/".parse().unwrap());
+    headers.insert("content-length", file_len.to_string().parse().unwrap());
+    // headers.insert("x-content-sha256", encode_block(&sha::sha256(file_buffer.as_slice())).parse().unwrap());
+    let auth_header = sign_request(&headers, &endpoint, "put", creds);
+    headers.insert("authorization", auth_header.parse().unwrap());
+
+    let request = request.method("PUT")
+        .uri(endpoint)
+        .body(file_buffer);
+    
+    let request = match request {
+        Ok(res) => res,
+        Err(err) => return Err(err.to_string())
+    };
+
+    match request.send() {
+        Ok(res) => {
+            if res.status().is_success() {
+                match res.into_body().text() {
+                    Ok(res) => res,
+                    Err(err) => return Err(err.to_string())
+                }
+            } else {
+                return Err(res.into_body().text().unwrap_or_default())
+            }
+        },
+        Err(err) => return Err(err.to_string())
+    };
+
+    Ok(())
 }
 
 fn gen_preauth() {
@@ -62,7 +103,7 @@ fn get_namespace(creds: &Credentials) -> Result<String, String> {
         // TODO: error handling
         Ok(result) => {
             if result.status().is_success() {
-                Ok(result.into_body().text().unwrap())
+                Ok(result.into_body().text().unwrap().replace("\"", ""))
             } else {
                 Err(result.into_body().text().unwrap())
             }
@@ -87,9 +128,9 @@ fn sign_request(headers: &HeaderMap, uri: &Uri, method: &str, creds: &Credential
     auth_header = String::from(auth_header.trim_end());
     auth_header.push_str("\"");
     signing_string.pop();
-    println!("{:?}", signing_string);
-    println!("{}", auth_header);
 
+    #[cfg(debug_assertions)]
+    println!("{}\n{}", signing_string, auth_header);
     // Sign
     let mut cert_file = File::open(CERT_FILE)
         .expect("Could not open cert.pem file.");

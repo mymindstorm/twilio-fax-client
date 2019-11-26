@@ -8,15 +8,16 @@ pub fn start_fax(data: FaxData, tx: mpsc::Sender<TxStatus>) {
     // Upload to bucket
     tx.send(TxStatus::UploadFile).unwrap();
     let result = bucket::upload_object(&data.creds, &data.media_path, &data.media_name);
-    let result = match result {
+    match result {
         Ok(res) => res,
         Err(err) => {
             tx.send(TxStatus::FaxError(err));
             return;
         }
     };
-    println!("AAAAA");
+
     // Gen REQ
+    tx.send(TxStatus::GenPreauth).unwrap();
     // Sub to twilio
     // Monitor status
 }

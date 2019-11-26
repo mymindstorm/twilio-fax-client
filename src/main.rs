@@ -87,9 +87,10 @@ fn send_form(ui: &Ui, ui_state: &mut UIState, tx: mpsc::Sender<TxStatus>) {
             ui.spacing();
             if ui.small_button(im_str!("Send Fax")) {
                 ui_state.view = CurrentView::SubmitStatus;
-                let fax_data = new_fax_data(String::from(ui_state.conf_send_from.to_str()),
-                    String::from(ui_state.form_send_to.to_str()),
+                let fax_data = new_fax_data(
                     String::from(ui_state.conf_send_from.to_str()),
+                    String::from(ui_state.form_send_to.to_str()),
+                    String::from(ui_state.form_file.to_str()),
                     new_creds(
                         String::from(ui_state.conf_twilio_sid.to_str()),
                         String::from(ui_state.conf_twilio_token.to_str()),

@@ -3,3 +3,5 @@
 - [ ] Batch jobs
 - [ ] Ask delete from bucket on error
 - [ ] Error handling
+- [ ] Check if it's actually a PDF!!
+- [ ] File upload status
