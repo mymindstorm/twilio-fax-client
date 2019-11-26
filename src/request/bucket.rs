@@ -1,6 +1,5 @@
 use isahc::prelude::*;
-use isahc::Error;
-use isahc::http::{uri::Uri, header::HeaderMap};
+use isahc::http::{Uri, HeaderMap};
 use chrono::Utc;
 use std::vec::Vec;
 use std::io::prelude::*;
@@ -16,29 +15,31 @@ const BUCKET_NAME: &str = "bucket-fax";
 const BUCKET_ENDPOINT: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com";
 const CERT_FILE: &str = "cert.pem";
 
-//noinspection ALL
-pub fn upload_object(creds: &Credentials, file_path: &str, file_name: &str) -> Result<(), String> {
-    let namespace = get_namespace(creds).unwrap();
-    println!("{:#?}", namespace);
-    // let namespace = "idwvkbdltggo";
+pub fn upload_object(creds: &Credentials, file_path: &str, file_name: &str) -> Result<String, String> {
+    let namespace = get_namespace(creds);
+
+    let namespace = match namespace {
+        Ok(res) => res,
+        Err(err) => return Err(err)
+    };
+
     // Upload file
-    // let endpoint = format!("{}/n/{}/b/{}/o/{}", BUCKET_ENDPOINT, namespace, BUCKET_NAME, file_name).parse::<Uri>().unwrap();
-    // let content_length = 1;
-    // let request = Request::builder()
-    //     .method("PUT")
-    //     .uri(endpoint.clone())
-    //     .header("content-length", content_length)
-    //     .header("date", Utc::now().to_rfc2822())
-    //     .header("host", endpoint.clone().host().unwrap())
-    //     .header("(request-target)", format!("put {}", endpoint.query().unwrap()));
-    Ok(())
+    let endpoint = format!("{}/n/{}/b/{}/o/{}", BUCKET_ENDPOINT, namespace, BUCKET_NAME, file_name).parse::<Uri>().unwrap();
+    let content_length = 1;
+    let request = Request::builder()
+        .method("PUT")
+        .uri(endpoint.clone())
+        .header("content-length", content_length)
+        .header("date", Utc::now().to_rfc2822())
+        .header("host", endpoint.clone().host().unwrap());
+    Ok(String::new())
 }
 
 fn gen_preauth() {
 
 }
 
-fn get_namespace(creds: &Credentials) -> Result<String, Error> {
+fn get_namespace(creds: &Credentials) -> Result<String, String> {
     let endpoint = format!("{}/n/", BUCKET_ENDPOINT);
     let endpoint = endpoint.parse::<Uri>().unwrap();
     
@@ -54,13 +55,19 @@ fn get_namespace(creds: &Credentials) -> Result<String, Error> {
 
     let request = request.method("GET")
         .uri(endpoint)
-        .body(())?
+        .body(()).unwrap()
         .send();
 
     match request {
         // TODO: error handling
-        Ok(result) => Ok(result.into_body().text().unwrap()),
-        Err(error) => Err(error)
+        Ok(result) => {
+            if result.status().is_success() {
+                Ok(result.into_body().text().unwrap())
+            } else {
+                Err(result.into_body().text().unwrap())
+            }
+        },
+        Err(error) => Err(error.to_string())
     }
 }
 

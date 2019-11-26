@@ -129,7 +129,11 @@ fn submit_status(ui: &Ui, ui_state: &mut UIState, rx: Rc<mpsc::Receiver<TxStatus
                     ui.text("API response here");
                 },
                 TxStatus::FaxError(error) => {
-                    ui.text_colored([1.0, 0.0, 0.0, 1.0], error);
+                    ui.text_wrapped(&ImString::new(error));
+                    ui.spacing();
+                    if ui.small_button(im_str!("Restart")) {
+                        ui_state.view = CurrentView::SendForm;
+                    }
                 }
             }
         });
