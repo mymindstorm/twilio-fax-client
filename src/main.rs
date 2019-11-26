@@ -38,6 +38,7 @@ fn main() {
             state.conf_twilio_token = ImString::from(data.twilio_token);
             state.conf_tenant_ocid = ImString::from(data.tenant_ocid);
             state.conf_user_ocid = ImString::from(data.user_ocid);
+            state.conf_pub_cert = ImString::from(data.pub_cert);
         },
         Err(_err) => {
             state.conf_send_from.push_str("+1");

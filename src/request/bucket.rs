@@ -45,7 +45,8 @@ fn get_namespace(creds: &Credentials) -> Result<String, Error> {
     let mut request = Request::builder();
     {
         let headers = request.headers_mut().unwrap();
-        headers.insert("date", Utc::now().to_rfc2822().parse().unwrap());
+        let time = Utc::now().to_rfc2822().replace("+0000", "GMT");
+        headers.insert("date", time.parse().unwrap());
         headers.insert("host", endpoint.host().unwrap().parse().unwrap());
         let auth_header = sign_request(&headers, &endpoint, "get", creds);
         headers.insert("authorization", auth_header.parse().unwrap());
@@ -57,14 +58,13 @@ fn get_namespace(creds: &Credentials) -> Result<String, Error> {
         .send();
 
     match request {
-        Ok(result) => {
-            println!("{}", result.into_body().text().unwrap());
-            Ok(String::new())
-        },
+        // TODO: error handling
+        Ok(result) => Ok(result.into_body().text().unwrap()),
         Err(error) => Err(error)
     }
 }
 
+// Sign HTTP requests to oracle cloud and return Authorization
 fn sign_request(headers: &HeaderMap, uri: &Uri, method: &str, creds: &Credentials) -> String {
     // Get signing string
     let mut signing_string = String::new();
@@ -74,12 +74,15 @@ fn sign_request(headers: &HeaderMap, uri: &Uri, method: &str, creds: &Credential
     auth_header.push_str("(request-target) ");
 
     for (key, val) in headers.iter() {
-        signing_string.push_str(&format!("{}: {:?}\n", key, val));
+        signing_string.push_str(&format!("{}: {}\n", key, val.to_str().unwrap()));
         auth_header.push_str(&format!("{} ", key));
     }
     auth_header = String::from(auth_header.trim_end());
     auth_header.push_str("\"");
     signing_string.pop();
+    println!("{:?}", signing_string);
+    println!("{}", auth_header);
+
     // Sign
     let mut cert_file = File::open(CERT_FILE)
         .expect("Could not open cert.pem file.");
@@ -93,6 +96,5 @@ fn sign_request(headers: &HeaderMap, uri: &Uri, method: &str, creds: &Credential
     let signature = encode_block(signature.as_slice());
     auth_header = format!("{},signature=\"{}\"", auth_header, signature);
 
-    println!("{}", auth_header);
     auth_header
 }
