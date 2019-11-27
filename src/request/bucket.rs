@@ -214,7 +214,7 @@ pub struct PreauthenticatedRequest {
 }
 
 impl PreauthenticatedRequest {
-    pub fn get_uri(&self) -> &str {
-        &self.accessUri
+    pub fn get_uri(&self) -> String {
+        format!("{}{}", BUCKET_ENDPOINT, &self.accessUri)
     }
 }
