@@ -1,7 +1,9 @@
 - [ ] File picker
+    - Check if it's actually a PDF!!
+- [ ] Status dialog
+    - File with object name and fax SID
+    - Store in %APPDATA%?
 - [ ] File preview
 - [ ] Batch jobs
-- [ ] Ask delete from bucket on error
 - [ ] Error handling
-- [ ] Check if it's actually a PDF!!
 - [ ] File upload status

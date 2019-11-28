@@ -1,4 +1,6 @@
 use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 use chrono::Utc;
 
 mod bucket;
@@ -37,7 +39,28 @@ pub fn start_fax(data: FaxData, tx: mpsc::Sender<TxStatus>) {
         }
     };
     // Monitor status
-    tx.send(TxStatus::FaxStatus).unwrap();
+    tx.send(TxStatus::FaxStatus(fax.status)).unwrap();
+    tx.send(TxStatus::FaxStatus(String::from("queued"))).unwrap();
+
+    loop {
+        let fax = fax::get_fax(&data.creds, &fax.sid);
+        let fax = match fax {
+            Ok(res) => res,
+            Err(err) => {
+                tx.send(TxStatus::FaxError(err));
+                return;
+            }
+        };
+
+        tx.send(TxStatus::FaxStatus(fax.status.clone())).unwrap();
+
+        match fax.status.as_str() {
+            "delivered" | "no-answer" | "busy" | "failed" | "canceled" => break,
+            _ => {}
+        }
+
+        thread::sleep(Duration::new(5, 0));
+    }
 }
 
 pub struct FaxData {
@@ -81,6 +104,6 @@ pub enum TxStatus {
     UploadFile,
     GenPreauth,
     SubmitFax,
-    FaxStatus,
+    FaxStatus(String),
     FaxError(String)
 }

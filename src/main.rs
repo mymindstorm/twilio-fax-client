@@ -25,7 +25,7 @@ fn main() {
         conf_tenant_ocid: ImString::with_capacity(150),
         conf_user_ocid: ImString::with_capacity(150),
         conf_pub_cert: ImString::with_capacity(100),
-        view: CurrentView::SendForm,
+        form_view: CurrentView::SendForm,
         fax_status: TxStatus::WaitUser,
     };
 
@@ -42,14 +42,14 @@ fn main() {
         },
         Err(_err) => {
             state.conf_send_from.push_str("+1");
-            state.view = CurrentView::EditSettings;
+            state.form_view = CurrentView::EditSettings;
         }
     }
 
     state.form_send_to.push_str("+1");
 
     system.main_loop(|_, ui| {
-        match state.view {
+        match state.form_view {
             CurrentView::SendForm => send_form(&ui, &mut state, tx.clone()),
             CurrentView::SubmitStatus => submit_status(&ui, &mut state, Rc::clone(&rx)),
             CurrentView::EditSettings => edit_settings(&ui, &mut state, &mut conf_file),
@@ -86,7 +86,7 @@ fn send_form(ui: &Ui, ui_state: &mut UIState, tx: mpsc::Sender<TxStatus>) {
             ui.separator();
             ui.spacing();
             if ui.small_button(im_str!("Send Fax")) {
-                ui_state.view = CurrentView::SubmitStatus;
+                ui_state.form_view = CurrentView::SubmitStatus;
                 let fax_data = new_fax_data(
                     String::from(ui_state.conf_send_from.to_str()),
                     String::from(ui_state.form_send_to.to_str()),
@@ -126,14 +126,27 @@ fn submit_status(ui: &Ui, ui_state: &mut UIState, rx: Rc<mpsc::Receiver<TxStatus
                 TxStatus::SubmitFax => {
                     ui.text("Submitting fax...");
                 },
-                TxStatus::FaxStatus => {
-                    ui.text("API response here");
+                TxStatus::FaxStatus(status) => {
+                    let status_text = match status.as_str() {
+                        "queued" => "Fax queued...",
+                        "processing" => "Fax processing...",
+                        "sending" => "Fax sending...",
+                        "delivered" => "Fax delivered!",
+                        "receiving" => "Fax being received...",
+                        "received" => "Fax received!",
+                        "no-answer" => "Failure: no answer.",
+                        "busy" => "Failure: busy.",
+                        "failed" => "Failed",
+                        "canceled" => "Canceled",
+                        _ => "Unknown status"
+                    };
+                    ui.text(status_text);
                 },
                 TxStatus::FaxError(error) => {
                     ui.text_wrapped(&ImString::new(error));
                     ui.spacing();
                     if ui.small_button(im_str!("Restart")) {
-                        ui_state.view = CurrentView::SendForm;
+                        ui_state.form_view = CurrentView::SendForm;
                     }
                 }
             }
@@ -183,7 +196,7 @@ fn edit_settings(ui: &Ui, ui_state: &mut UIState, conf_file: &mut std::fs::File)
                     .expect("Error writing to config.json");
                 conf_file.set_len(conf_data_len)
                     .unwrap();
-                ui_state.view = CurrentView::SendForm;
+                ui_state.form_view = CurrentView::SendForm;
             }
         });
 }
@@ -197,7 +210,7 @@ struct UIState {
     conf_tenant_ocid: ImString,
     conf_user_ocid: ImString,
     conf_pub_cert: ImString,
-    view: CurrentView,
+    form_view: CurrentView,
     fax_status: TxStatus,
 }
 
