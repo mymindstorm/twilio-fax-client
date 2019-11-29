@@ -10,8 +10,7 @@ pub fn sub_fax(data: &FaxData, media_uri: &str) -> Result<Fax, String> {
     let authorization = format!("{}:{}", data.creds.twilio_sid, data.creds.twilio_secret);
     let authorization = format!("Basic {}", encode_block(authorization.as_bytes()));
     
-    let mut body = format!("To={}&From={}&MediaUrl={}&StoreMedia=false", data.fax_to, data.fax_from, media_uri);
-    body = basic_urlencode(body);
+    let body = format!("To={}&From={}&MediaUrl={}&StoreMedia=false", basic_urlencode(&data.fax_to), basic_urlencode(&data.fax_from), basic_urlencode(media_uri));
     let request = Request::builder()
         .method("POST")
         .uri(format!("{}/Faxes", TWILIO_ENDPOINT))
@@ -66,7 +65,8 @@ pub fn get_fax(creds: &Credentials, sid: &str) -> Result<Fax, String> {
         }
 }
 
-fn basic_urlencode(mut input: String) -> String {
+fn basic_urlencode(input: &str) -> String {
+    let mut input = String::from(input);
     input = input.replace(":", "%3A");
     input = input.replace("/", "%2F");
     input = input.replace("+", "%2B");
