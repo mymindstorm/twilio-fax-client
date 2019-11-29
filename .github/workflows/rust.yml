@@ -2,8 +2,8 @@ name: Rust
 
 on: 
   push:
-    branches:
-      - release
+    # branches:
+    #   - release
 
 jobs:
   build-linux:
@@ -26,6 +26,8 @@ jobs:
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
     - name: Build
       run: cargo build --release --verbose
+      env:
+        OPENSSL_STATIC: yes
     - name: Upload artifacts
       uses: actions/upload-artifact@v1.0.0
       with:
@@ -52,6 +54,8 @@ jobs:
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
     - name: Build
       run: cargo build --release --verbose
+      env:
+        OPENSSL_STATIC: yes
     - name: Upload artifacts
       uses: actions/upload-artifact@v1.0.0
       with:
