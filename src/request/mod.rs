@@ -13,7 +13,7 @@ pub fn start_fax(data: FaxData, tx: mpsc::Sender<TxStatus>) {
     match result {
         Ok(res) => res,
         Err(err) => {
-            tx.send(TxStatus::FaxError(err));
+            tx.send(TxStatus::FaxError(err)).unwrap_or_default();
             return;
         }
     };
@@ -24,7 +24,7 @@ pub fn start_fax(data: FaxData, tx: mpsc::Sender<TxStatus>) {
     let preauth = match preauth {
         Ok(res) => res,
         Err(err) => {
-            tx.send(TxStatus::FaxError(err));
+            tx.send(TxStatus::FaxError(err)).unwrap_or_default();
             return;
         }
     };
@@ -34,7 +34,7 @@ pub fn start_fax(data: FaxData, tx: mpsc::Sender<TxStatus>) {
     let fax = match fax {
         Ok(res) => res,
         Err(err) => {
-            tx.send(TxStatus::FaxError(err));
+            tx.send(TxStatus::FaxError(err)).unwrap_or_default();
             return;
         }
     };
@@ -47,7 +47,7 @@ pub fn start_fax(data: FaxData, tx: mpsc::Sender<TxStatus>) {
         let fax = match fax {
             Ok(res) => res,
             Err(err) => {
-                tx.send(TxStatus::FaxError(err));
+                tx.send(TxStatus::FaxError(err)).unwrap_or_default();
                 return;
             }
         };

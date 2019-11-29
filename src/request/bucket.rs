@@ -90,9 +90,9 @@ pub fn gen_preauth(creds: &Credentials, file_name: &str) -> Result<Preauthentica
     let expiry = Utc.timestamp(today + 86400, 0);
     let body = CreatePreauthenticatedRequestDetails {
         name: auth_req_name,
-        objectName: String::from(file_name),
-        accessType: String::from("ObjectRead"),
-        timeExpires: expiry.to_rfc3339()
+        object_name: String::from(file_name),
+        access_type: String::from("ObjectRead"),
+        time_expires: expiry.to_rfc3339()
     };
     let body = serde_json::to_string(&body).unwrap();
 
@@ -196,25 +196,27 @@ fn sign_request(headers: &HeaderMap, uri: &Uri, method: &str, creds: &Credential
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreatePreauthenticatedRequestDetails {
     name: String,
-    objectName: String,
-    accessType: String,
-    timeExpires: String
+    object_name: String,
+    access_type: String,
+    time_expires: String
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PreauthenticatedRequest {
-    accessUri: String,
+    access_uri: String,
     id: String,
     name: String,
-    accessType: String,
-    timeCreated: String,
-    timeExpires: String
+    access_type: String,
+    time_created: String,
+    time_expires: String
 }
 
 impl PreauthenticatedRequest {
     pub fn get_uri(&self) -> String {
-        format!("{}{}", BUCKET_ENDPOINT, &self.accessUri)
+        format!("{}{}", BUCKET_ENDPOINT, &self.access_uri)
     }
 }
