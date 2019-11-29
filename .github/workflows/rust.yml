@@ -26,8 +26,6 @@ jobs:
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
     - name: Build
       run: cargo build --release --verbose
-      env:
-        OPENSSL_STATIC: yes
     - name: Upload artifacts
       uses: actions/upload-artifact@v1.0.0
       with:
@@ -52,10 +50,14 @@ jobs:
       with:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+    - name: vcpkg OpenSSL
+      run: vcpkg install openssl:x64-windows-static
     - name: Build
       run: cargo build --release --verbose
       env:
         OPENSSL_STATIC: yes
+        OPENSSL_LIB_DIR: "%VCPKG_INSTALLATION_ROOT%\\installed\\x64-windows-static\\lib"
+        OPENSSL_INCLUDE_DIR: "%VCPKG_INSTALLATION_ROOT%\\installed\\x64-windows-static\\include"
     - name: Upload artifacts
       uses: actions/upload-artifact@v1.0.0
       with:
