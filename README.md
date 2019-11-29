@@ -21,6 +21,8 @@ My simple Twilio fax sending program. This is my first Rust program, so the code
 
 #### Run
 
-```
-cargo run
-```
+Download from the artifacts and run. 
+
+##### Windows Notes
+
+You may need to install OpenSSL from [here](https://slproweb.com/products/Win32OpenSSL.html).
