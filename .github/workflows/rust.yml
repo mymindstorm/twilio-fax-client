@@ -30,7 +30,7 @@ jobs:
       uses: actions/upload-artifact@v1.0.0
       with:
         name: ${{ runner.os }}-target
-        path: target
+        path: target/twilio-fax-client
   build-windows:
     runs-on: windows-latest
 
@@ -56,4 +56,4 @@ jobs:
       uses: actions/upload-artifact@v1.0.0
       with:
         name: ${{ runner.os }}-target
-        path: target
+        path: target/twilio-fax-client.exe
